@@ -154,6 +154,8 @@ function App() {
         </form>
       </div>
 
+
+
       <div className="dashboard-grid">
         {loading && <div className="loading-spinner-full"></div>}
         {error && <div className="error-message">Error: {error}. Is the backend running?</div>}
@@ -198,21 +200,113 @@ function App() {
                   </div>
                 )}
               </div>
+              {chartDisplay.__prominent_sources && chartDisplay.__prominent_sources.length > 0 && (
+              <div style={{ paddingTop: 10 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {chartDisplay.__prominent_sources.map((p: any, i: number) => (
+                    <a key={i}
+                      href={p.url || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '6px 10px',
+                        background: '#fff',
+                        border: '1px solid #ddd',
+                        borderRadius: 6,
+                        textDecoration: 'none',
+                        color: '#333',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        display: 'inline-flex',
+                        flexDirection: 'column',
+                        minWidth: 140
+                      }}>
+                      <strong style={{fontSize: 13}}>{p.name}</strong>
+                      <small style={{opacity: 0.8}}>{p.type || p.tool}{p.cached ? ' • cached' : ''}</small>
+                    </a>
+                  ))}
 
+                  {/* View Raw Evidence & CSV buttons */}
+                  <div style={{ display: 'flex', gap: 8, marginLeft: 6 }}>
+                    <button onClick={async () => {
+                      const key = chartDisplay.__evidence_key;
+                      if (!key) { alert("No evidence available for this chart."); return; }
+                      const url = `http://localhost:8001/api/evidence/${key}`;
+                      window.open(url, "_blank");
+                    }}>
+                      View raw evidence
+                    </button>
+
+                    <button onClick={async () => {
+                      const key = chartDisplay.__evidence_key;
+                      if (!key) { alert("No evidence available for this chart."); return; }
+                      window.location.href = `http://localhost:8001/api/evidence/${key}/csv`;
+                    }}>
+                      Download merged CSV
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
               <div style={{ paddingTop: 12, borderTop: '1px solid #eee', marginTop: 10 }}>
                 <strong>Data Sources Used:</strong>
                 {chartDisplay.sources && chartDisplay.sources.length > 0 ? (
-                  <ul style={{ marginTop: 8 }}>
-                    {chartDisplay.sources.map((s, si) => (
-                      <li key={si}>
-                        <small>{s.tool}{s.args ? ` — ${JSON.stringify(s.args)}` : ''}{s.cached ? ' (cached)' : ''}{s.fetched_at ? ` — ${new Date(s.fetched_at).toLocaleString()}` : ''}</small>
-                      </li>
-                    ))}
-                  </ul>
+                  <div style={{ marginTop: 8 }}>
+                    <ul style={{ paddingLeft: 16 }}>
+                      {chartDisplay.sources.map((s: any, si: number) => {
+                        const url = s.source?.url || s.source?.link || (s as any).url || (s as any).link;
+                        const name = s.source?.name || s.tool || s.name || `source-${si+1}`;
+                        return (
+                          <li key={si} style={{ marginBottom: 6 }}>
+                            <small>
+                              {url ? (
+                                <a href={url} target="_blank" rel="noopener noreferrer">{name}</a>
+                              ) : <span>{name}</span>}
+                              {s.cached ? ' (cached)' : ''}
+                              {s.fetched_at ? ` — ${new Date(s.fetched_at).toLocaleString()}` : ''}
+                              {s.args ? ` — ${JSON.stringify(s.args)}` : ''}
+                            </small>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                      <button onClick={() => {
+                        (chartDisplay.sources || []).forEach((s: any) => {
+                          const url = s.source?.url || s.url || s.link;
+                          if (url) window.open(url, "_blank");
+                        });
+                      }}>
+                        Open all sources
+                      </button>
+
+                      <button onClick={async () => {
+                        // Deep Dive trigger: ask user for competitor list (quick flow)
+                        const competitors = prompt("Enter competitors (comma separated), or leave blank to use chart title:");
+                        const compList = competitors ? competitors.split(",").map((c)=>c.trim()).filter(Boolean) : [ (chartDisplay.plotlyChart?.layout as any)?.title?.text || `chart` ];
+                        try {
+                          const resp = await fetch("http://localhost:8001/api/deep-dive", {
+                            method: "POST",
+                            headers: {"Content-Type":"application/json"},
+                            body: JSON.stringify({ topic: compList.join(","), competitors: compList })
+                          });
+                          const deep = await resp.json();
+                          const w = window.open("");
+                          w!.document.write("<pre>" + JSON.stringify(deep.merged || deep, null, 2) + "</pre>");
+                        } catch (err) {
+                          alert("Deep dive failed: " + err);
+                        }
+                      }}>
+                        Deep Dive
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div style={{ color: '#666', marginTop: 8 }}><small>No sources available.</small></div>
                 )}
               </div>
+
+
             </div>
           );
         })}
